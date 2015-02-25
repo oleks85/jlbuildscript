@@ -193,7 +193,7 @@ fullloaddata() {
   echo "***"
   echo "***"
   echo "***"
-  read -p "*** Please start bcc and store in separate terminal window (bcc-start, store-start) and press Enter to continue..."
+  read -p "*** Please start mocks, bcc and store in separate terminal window (mocks-start, bcc-start, store-start) and press Enter to continue..."
   deployData
  else
   return $STATUS
