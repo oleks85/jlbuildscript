@@ -1,0 +1,131 @@
+#!/bin/bash
+SERVER_STARTED_PHRASE="Started in"
+SERVER_SHUTDOWN_PHRASE="Shutdown complete"
+
+MOCKS_LOG=${JBOSS_HOME}/server/mocks/log/server.log
+STORE_LOG=${JBOSS_HOME}/server/store-lock/log/server.log
+BCC_LOG=${JBOSS_HOME}/server/store-pub-lock/log/server.log
+STORE_START_SCRIPT=${ATG_PRJ_FOLDER}/dsm_jec_Website/env/JL_DEV/bin/store-start.sh
+MOCKS_START_SCRIPT=${ATG_PRJ_FOLDER}/dsm_jec_Website/env/JL_DEV/bin/mocks-start.sh
+BCC_START_SCRIPT=${ATG_PRJ_FOLDER}/dsm_jec_Website/env/JL_DEV/bin/bcc-start.sh
+
+startBcc() {
+  pgrep -f "run.sh -c store-pub-lock" &> /dev/null
+  if [ $? -ne 0 ]
+  then
+    gnome-terminal -e "bash -c \"${BCC_START_SCRIPT} && exit; exec bash\"" -t BCC
+#wait for server start 
+    tail -f ${BCC_LOG} | while read LOGLINE
+    do
+      [[ "${LOGLINE}" == *${SERVER_STARTED_PHRASE}* ]] && pkill -P $$ tail
+    done
+    echo "Bcc server is up and running."
+  fi
+}
+
+startMocks() {
+  pgrep -f "run.sh -c mocks" &> /dev/null
+  if [ $? -ne 0 ]
+  then
+    gnome-terminal -e "bash -c \"${MOCKS_START_SCRIPT} && exit; exec bash\"" -t MOCKS
+#wait for server start 
+    tail -f ${MOCKS_LOG} | while read LOGLINE
+    do
+      [[ "${LOGLINE}" == *${SERVER_STARTED_PHRASE}* ]] && pkill -P $$ tail
+    done
+    echo "Mocks server is up and running."
+  fi
+}
+
+startStore() {
+  pgrep -f "run.sh -c store-lock" &> /dev/null
+  if [ $? -ne 0 ]
+  then
+    gnome-terminal -e "bash -c \"${STORE_START_SCRIPT} && exit; exec bash\"" -t STORE
+#wait for server start 
+    tail -f ${STORE_LOG} | while read LOGLINE
+    do
+      [[ "${LOGLINE}" == *${SERVER_STARTED_PHRASE}* ]] && pkill -P $$ tail
+    done
+    echo "Store server is up and running."
+  fi
+}
+
+stopMocks() {
+#check if mocks is not already run
+  pgrep -f "run.sh -c mocks" &> /dev/null
+  if [ $? -eq 0 ]
+  then
+    mpid=$(pgrep -f "run.sh -c mocks")
+    echo "Detected mocks server process with PID=${mpid}... Going to stop it."
+#    mocksTermPid=$(top_level_parent_pid ${mpid})
+#    echo "Mocks running in terminal with PID=${mocksTermPid}"
+    ${JBOSS_HOME}/bin/shutdown.sh -S -s jnp://localhost:1399
+#now see into the log for the shutdown complete message
+    tail -f ${MOCKS_LOG} | while read LOGLINE
+    do
+      [[ "${LOGLINE}" == *${SERVER_SHUTDOWN_PHRASE}* ]] && pkill -P $$ tail
+    done
+    echo "Mocks seem to be shutted down"
+#    echo "Closing Mocks terminal window"
+#    kill -s 15 ${mocksTermPid}
+  fi
+  sleep 2
+}
+
+stopBcc() {
+  pgrep -f "run.sh -c store-pub-lock" &> /dev/null
+  if [ $? -eq 0 ]
+  then
+    mpid=$(pgrep -f "run.sh -c store-pub-lock")
+    echo "Detected BCC server process with PID=${mpid}... Going to stop it."
+#    mocksTermPid=$(top_level_parent_pid ${mpid})
+#    echo "Mocks running in terminal with PID=${mocksTermPid}"
+    ${JBOSS_HOME}/bin/shutdown.sh -S -s jnp://localhost:1199
+#now see into the log for the shutdown complete message
+    tail -f ${BCC_LOG} | while read LOGLINE
+    do
+      [[ "${LOGLINE}" == *${SERVER_SHUTDOWN_PHRASE}* ]] && pkill -P $$ tail
+    done
+    echo "Store seem to be shutted down"
+#    echo "Closing Mocks terminal window"
+#    kill -s 15 ${mocksTermPid}
+  fi
+  sleep 2
+}
+
+stopStore() {
+  pgrep -f "run.sh -c store-lock" &> /dev/null
+  if [ $? -eq 0 ]
+  then
+    mpid=$(pgrep -f "run.sh -c store-lock")
+    echo "Detected store server process with PID=${mpid}... Going to stop it."
+#    mocksTermPid=$(top_level_parent_pid ${mpid})
+#    echo "Mocks running in terminal with PID=${mocksTermPid}"
+    ${JBOSS_HOME}/bin/shutdown.sh -S -s jnp://localhost:1099
+#now see into the log for the shutdown complete message
+    tail -f ${STORE_LOG} | while read LOGLINE
+    do
+      [[ "${LOGLINE}" == *${SERVER_SHUTDOWN_PHRASE}* ]] && pkill -P $$ tail
+    done
+    echo "Store seem to be shutted down"
+#    echo "Closing Mocks terminal window"
+#    kill -s 15 ${mocksTermPid}
+  fi
+  sleep 2
+}
+
+function top_level_parent_pid {
+    # Look up the parent of the given PID.
+    pid=${1:-$$}
+    stat=($(</proc/${pid}/stat))
+    ppid=${stat[3]}
+
+    # /sbin/init always has a PID of 1, so if you reach that, the current PID is
+    # the top-level parent. Otherwise, keep looking.
+    if [[ ${ppid} -eq 1 ]] ; then
+        echo ${pid}
+    else
+        top_level_parent_pid ${ppid}
+    fi
+}

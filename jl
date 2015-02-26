@@ -4,41 +4,14 @@ MOCKS_WS_FOLDER=~/development/projects/MocksWS/
 ATG_PRJ_FOLDER=~/development/projects/ATG/
 FRONTEND_CONFIG_FOLDER=~/development/projects/ATG/front-end-config/
 
-JL=jl
+#Resolve the directory where the script is placed
+SCRIPT_DIR=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
 
-# Formatting constants
-export BOLD=`tput bold`
-export UNDERLINE_ON=`tput smul`
-export UNDERLINE_OFF=`tput rmul`
-export TEXT_BLACK=`tput setaf 0`
-export TEXT_RED=`tput setaf 1`
-export TEXT_GREEN=`tput setaf 2`
-export TEXT_YELLOW=`tput setaf 3`
-export TEXT_BLUE=`tput setaf 4`
-export TEXT_MAGENTA=`tput setaf 5`
-export TEXT_CYAN=`tput setaf 6`
-export TEXT_WHITE=`tput setaf 7`
-export BACKGROUND_BLACK=`tput setab 0`
-export BACKGROUND_RED=`tput setab 1`
-export BACKGROUND_GREEN=`tput setab 2`
-export BACKGROUND_YELLOW=`tput setab 3`
-export BACKGROUND_BLUE=`tput setab 4`
-export BACKGROUND_MAGENTA=`tput setab 5`
-export BACKGROUND_CYAN=`tput setab 6`
-export BACKGROUND_WHITE=`tput setab 7`
-export RESET_FORMATTING=`tput sgr0`
-# Wrapper function for Maven's mvn command.
-mvn-color(){
-	# Filter mvn output using sed
-	mvn $@ | sed -e "s/\(\[INFO\]\ \-.*\)/${RESET_FORMATTING}\1/g" \
-	-e "s/\(\[INFO\]\ \[.*\)/${RESET_FORMATTING}${BOLD}\1${RESET_FORMATTING}/g" \
-	-e "s/\(\[INFO\]\ BUILD SUCCESSFUL\)/${BOLD}${TEXT_GREEN}\1${RESET_FORMATTING}/g" \
-	-e "s/\(\[WARNING\].*\)/${BOLD}${TEXT_YELLOW}\1${RESET_FORMATTING}/g" \
-	-e "s/\(\[ERROR\].*\)/${BOLD}${TEXT_RED}\1${RESET_FORMATTING}/g" \
-	-e "s/Tests run: \([^,]*\), Failures: \([^,]*\), Errors: \([^,]*\), Skipped: \([^,]*\)/${BOLD}${TEXT_GREEN}Tests run: \1${RESET_FORMATTING}, Failures: ${BOLD}${TEXT_RED}\2${RESET_FORMATTING}, Errors: ${BOLD}${TEXT_RED}\3${RESET_FORMATTING}, Skipped: ${BOLD}${TEXT_YELLOW}\4${RESET_FORMATTING}/g"
-	# Make sure formatting is reset
-	echo -ne ${RESET_FORMATTING}
-}
+#include sources
+. ${SCRIPT_DIR}/mvn-color
+. ${SCRIPT_DIR}/start-stop
+
+JL=jl
 
 #update project source code 
 svn_update() {
@@ -141,11 +114,8 @@ deployData() {
 
 #deploy mocks
 deployMosks() {
- echo "Start deploying mocks ..."
- echo "***"
- echo "***"
- echo "***"
- read -p "*** Please run mocks using moks-start command in separete terminal and press Enter to continue or Ctrl+C to exit..." 
+ startMocks
+ sleep 2
  mvn-color clean install -Pjboss,deploy -f $MOCKS_WS_FOLDER"pom.xml"
  STATUS=$?
  if [ $STATUS -eq 0 ]; then
@@ -158,11 +128,9 @@ deployMosks() {
 
 #full load data
 fullloaddata() {
- echo "***"
- echo "***"
- echo "***"
- read -p "*** Close all runnig jboss (store, mocks, bcc, etc...) and press Enter to continue or Ctrl+C to exit..."
- buildall
+ stopBcc
+ stopStore
+ stopMocks
  STATUS=$?
  if [ $STATUS -eq 0 ]; then
   recreatelocalconfig
@@ -190,11 +158,14 @@ fullloaddata() {
 
  STATUS=$?
  if [ $STATUS -eq 0 ]; then
-  echo "***"
-  echo "***"
-  echo "***"
-  read -p "*** Please start mocks, bcc and store in separate terminal window (mocks-start, bcc-start, store-start) and press Enter to continue..."
+  startMocks
+  startStore
+  startBcc
+  sleep 2
   deployData
+  stopBcc
+  stopStore
+  stopMocks
  else
   return $STATUS
  fi
@@ -218,6 +189,15 @@ updateAndBuild() {
 
 execute_operation() {
 	case "$1" in
+	 mocks-start)
+	  startMocks
+	  ;;
+	 store-start)
+	  startStore
+	  ;;
+   	 bcc-start)
+	  startBcc
+	  ;;
 	 svn-update)
 	  svn_update
 	  RETVAL=$?
@@ -257,6 +237,9 @@ execute_operation() {
 		FALSE "build-without-tests" "Buld ATG project and do not invoke jUnit tests"\
 		FALSE "mocks-deploy" "Build and deploy mocks" \
 		FALSE "full-load-data" "Full load data" \
+		FALSE "mocks-start" "Start mocks server" \
+		FALSE "store-start" "Start store server" \
+		FALSE "bcc-start" "Start BCC server" \
 		--separator=":" --width=600 --height=400);
 	  IFS=":" read -ra OP <<< $ans
 	  for x in ${OP[@]}; do
