@@ -9,6 +9,7 @@ SCRIPT_DIR=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
 
 #include sources
 . ${SCRIPT_DIR}/mvn-color
+. ${SCRIPT_DIR}/svn-color
 . ${SCRIPT_DIR}/start-stop
 
 JL=jl
